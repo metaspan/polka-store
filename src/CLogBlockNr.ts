@@ -1,6 +1,7 @@
 import { ApiPromise } from '@polkadot/api';
 import { sprintf } from 'sprintf-js';
-import * as chalk from 'chalk';
+// for some reason import does not work after compile with tsc...?
+const chalk = require('chalk');
 
 // --------------------------------------------------------------
 // block number console output

@@ -1,7 +1,7 @@
 // Required imports
 import { Divide, LoadConfigFile } from './utils';
 import { CPolkaStore } from "./CPolkaStore";
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 
 import { IAssetInfo } from './types';
 

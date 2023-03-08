@@ -1,44 +1,89 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const db = require('better-sqlite3-helper');
+// const db = require('better-sqlite3-helper');
+import { Sequelize, Model } from 'sequelize-typescript';
+import { Op } from 'sequelize';
+import { TTransaction } from './types/Transaction'
 
-export type TTransaction = {
-  chain: string, id: string, height: number, blockHash: string, type: string, subType: string | undefined, event: string | undefined, addData: string | undefined, timestamp: number,
-  specVersion: number | undefined, transactionVersion: number | undefined, authorId: string | undefined, senderId: string | undefined, recipientId: string | undefined,
-  amount: bigint | undefined, totalFee: bigint | undefined, feeBalances: bigint | undefined, feeTreasury: bigint | undefined, tip: bigint | undefined, success: number | undefined
-};
+// class Transaction extends Model {}
+export type TDBOptions = Record<string, any>
+// import CTransaction from './models/transaction'
 
 export class CTxDB {
-  private _options: any;
-  private _db: any;
+  // private _options: any;
+  private _options: TDBOptions;
+  private _db: Sequelize;
+  private _transaction: any;
   private _chain: string;
   private _maxHeight: number;   // the highest block number in database (before program execution)
 
-  constructor(chain: string, filename?: string) {
-    this._options = {
-      path: './data/sqlite3.db', // this is the default
-      readonly: false, // read only
-      fileMustExist: false, // throw error if database not exists
-      WAL: true, // automatically enable 'PRAGMA journal_mode = WAL'?
-      migrate: {  // disable completely by setting `migrate: false`
-        force: false, // set to 'last' to automatically reapply the last migration-file
-        table: 'migration', // name of the database table that is used to keep track
-        migrationsPath: './migrations' // path of the migration-files
-      }
-    }
-    if (filename)
-      this._options.path = filename;
+  // constructor(chain: string, filename?: string, dbOpts: TDBOptions) {
+  constructor(chain: string, dbOpts: TDBOptions) {
+    // console.debug('CTxDB()...', chain, dbOpts)
+    // this._options = {
+    //   path: './data/sqlite3.db', // this is the default
+    //   readonly: false, // read only
+    //   fileMustExist: false, // throw error if database not exists
+    //   WAL: true, // automatically enable 'PRAGMA journal_mode = WAL'?
+    //   migrate: {  // disable completely by setting `migrate: false`
+    //     force: false, // set to 'last' to automatically reapply the last migration-file
+    //     table: 'migration', // name of the database table that is used to keep track
+    //     migrationsPath: './migrations' // path of the migration-files
+    //   }
+    // }
+    // if (filename)
+    //   this._options.path = filename;
+    this._options = dbOpts
+    if (dbOpts.logging === true) this._options.logging = false; // console.log
     this._chain = chain;
 
     console.log('Apply database migrations, please wait ...\n');
 
-    db(this._options);
-    db().defaultSafeIntegers(true);
-    this._db = db;
-    this._maxHeight = this.CalcMaxHeight();
+    // db(this._options);
+    // db().defaultSafeIntegers(true);
+    try {
+      const sequelize = new Sequelize({
+        ...this._options,
+        // database: this._options.database,
+        // dialect: this._options.options.dialect,
+        // username: this._options.options.username,
+        // password: this._options.options.password,
+        //this._options.options
+        models: [__dirname + '/models']
+      })
+      // console.debug(sequelize.models)
+      // sequelize.addModels([Transaction])
+      // console.debug('calling Transaction.init')
+      // Transaction.init(transactionModel.definition, { sequelize, ...transactionModel.options })
+      // const tx = sequelize.define('transaction', { ...transactionModel.definition },  { ...transactionModel.options, sequelize })
+      this._db = sequelize;
+      this._transaction = sequelize.models.Transaction;
+      // this._maxHeight = this.CalcMaxHeight();
 
-    process.on('exit', () => db().close());     // close database on exit
+    } catch (err) {
+      console.error(err)
+      process.exit(5)
+    // } finally {
+    //   console.debug('... finally')
+    }
+
+    // process.on('exit', () => db().close());     // close database on exit
+    process.on('exit', () => this._db.close());     // close database on exit
+  }
+
+  // requires await, hence async
+  static async Create(chain: string, dbOpts: TDBOptions) {
+    console.debug('CTxDB.Create()...')
+    const instance = new CTxDB(chain, dbOpts)
+    await instance.syncDB()
+    instance._maxHeight = await instance.CalcMaxHeight()
+    console.debug('instance._maxHeight', instance._maxHeight)
+    return instance
+  }
+
+  private async syncDB () {
+    await this._db.sync({ alter: true })
   }
 
   // --------------------------------------------------------------
@@ -55,16 +100,23 @@ export class CTxDB {
 
   // --------------------------------------------------------------
   // returns number of records in database
-  GetCount(): number {
-    const row = db().queryFirstRow('SELECT count(*) as count FROM transactions WHERE chain=?', this._chain);
-    return row.count;
+  async GetCount(): Promise<number> {
+    // const row = db().queryFirstRow('SELECT count(*) as count FROM transactions WHERE chain=?', this._chain);
+    const count = await this._transaction.count({ where: { chain: this._chain } });
+    // return row.count;
+    return Number(count);
   }
 
   // --------------------------------------------------------------
   // returns maximum blockheight in database (before program execution)
-  CalcMaxHeight(): number {
-    const row = db().queryFirstRow('SELECT max(height) as max FROM transactions WHERE chain=?', this._chain);
-    return row.max ? Number(row.max) : -1;
+  async CalcMaxHeight(): Promise<number> {
+    console.debug('CTxDB.CalcMaxHeight()...')
+    // const row = db().queryFirstRow('SELECT max(height) as max FROM transactions WHERE chain=?', this._chain);
+    
+    const max = await this._transaction.max('height', { where: { chain: this._chain } });
+    console.debug('max', max)
+    // return row.max ? Number(row.max) : -1;
+    return max ? Number(max) : -1;
   }
 
   // --------------------------------------------------------------
@@ -75,7 +127,7 @@ export class CTxDB {
 
   // --------------------------------------------------------------
   // returns total number of records
-  InsertTransactions(txs: TTransaction[]): number {
+  async InsertTransactions(txs: TTransaction[]): Promise<number> {
     if (!txs.length)
       return 0;
 
@@ -86,9 +138,13 @@ export class CTxDB {
     }
 
     // if we continue an existing database we remove (possibly incomplete) existing records with the same block number
-    if (txs[0].height == this._maxHeight)
-      db().run('DELETE FROM transactions WHERE height>=?', this._maxHeight);
+    if (txs[0].height == this._maxHeight) {
+      // db().run('DELETE FROM transactions WHERE height>=?', this._maxHeight);
+      await this._transaction.destroy({ where: { height: { [Op.gte]: this._maxHeight } } })
+    }
 
-    return db().insert('transactions', txs);
+    // return db().insert('transactions', txs);
+    const ret = (await this._transaction.bulkCreate(txs)).length;
+    return ret
   }
 }

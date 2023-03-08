@@ -4,10 +4,11 @@ import { Compact, Option } from '@polkadot/types';
 import { AssetId, BlockHash, RuntimeVersion, MultiLocationV0, MultiAssetV0, StakingLedger, BalanceOf, Outcome } from '@polkadot/types/interfaces';
 import {
   IBlock, IChainData, IExtrinsic, ISanitizedEvent, IOnInitializeOrFinalize,
-  IAccountBalanceInfo, IAccountStakingInfo, IAccountAssetsBalances, IAssetInfo
+  IAccountBalanceInfo, IAccountStakingInfo, IAccountAssetsBalances, IAssetInfo,
+  TTransaction
 } from './types';
 import ApiHandler from './ApiHandler';
-import { CTxDB, TTransaction } from './CTxDB';
+import { CTxDB, TDBOptions } from './CTxDB';
 import { CLogBlockNr } from "./CLogBlockNr";
 import * as getPackageVersion from '@jsbits/get-package-version';
 import { GetTime, GetNodeVersion } from './utils';
@@ -19,7 +20,7 @@ export type TBlockData = {
   blockNr: number,        // used before fetching the block 
   blockHash: BlockHash,   // used before fetching the block
   block: IBlock,
-  db: CTxDB,
+  // db: CTxDB,
   txs: TTransaction[],
   chain: string,
   isRelayChain: boolean
@@ -87,8 +88,9 @@ export class CPolkaStore {
   }
 
   // --------------------------------------------------------------
-  InitDataBase(chain: string, filename?: string): CTxDB {
-    this._db = new CTxDB(chain, filename); // Create transaction database instance
+  async InitDataBase(chain: string, dbOpts: TDBOptions): Promise<CTxDB> {
+    // console.debug('InitDatabase()...', chain, dbOpts)
+    this._db = await CTxDB.Create(chain, dbOpts); // Create transaction database instance
     return this._db;
   }
 
@@ -100,8 +102,11 @@ export class CPolkaStore {
 
   // --------------------------------------------------------------
   async ScanChain(): Promise<void> {
-    if (!this._api || !this._db)
+
+    if (!this._api || !this._db) {
+      console.debug('Missing api or db connection!');
       return;
+    }
 
     const maxBlock = this._db.GetMaxHeight();
     const lastBlock = await this.LastBlock();
@@ -198,7 +203,7 @@ export class CPolkaStore {
         blockHash: hash,
         blockNr: blockNr,
         txs: [],
-        db: this._db,
+        // db: this._db,
         chain: this._chain,
         isRelayChain: ["Polkadot", "Kusama", "Westend"].includes(this._chain)
       };
@@ -223,7 +228,8 @@ export class CPolkaStore {
       this.ProcessExtrinsics(data) // 2. process extrinsics
     ]);
 
-    data.db.InsertTransactions(data.txs);
+    // data.db.InsertTransactions(data.txs);
+    this._db.InsertTransactions(data.txs);
   }
 
   // --------------------------------------------------------------
@@ -233,7 +239,7 @@ export class CPolkaStore {
       if (ev.method == 'staking.Slash' || ev.method == 'staking.Slashed') {   // staking.Slashed from runtime 9090
 
         const tx: TTransaction = {
-          chain: data.db.chain,
+          chain: this._chain,
           id: data.block.number + '_onInitialize_ev' + index,
           height: data.blockNr,
           blockHash: data.block.hash.toString(),
@@ -296,7 +302,7 @@ export class CPolkaStore {
       //const method = ex.method;
 
       // 1. process all signed transactions (stores the fee / tip)
-      await this.ProcessGeneral(data, ex, exIdx, ver);
+      await this.ProcessGeneralExtrinsic(data, ex, exIdx, ver);
 
       // 2. process events attached to extrinsics
       //if (methodsToScan.includes(method))
@@ -313,9 +319,9 @@ export class CPolkaStore {
         evIdxBase += e.length;
       }
       /*
-            await Promise.all(ex.events.map(async (ev: ISanitizedEvent, evIdx: number) => {
-              await this.ProcessEvents(data, ex, exIdx, ev, evIdx, ver.specVersion.toNumber());
-            }));
+      await Promise.all(ex.events.map(async (ev: ISanitizedEvent, evIdx: number) => {
+        await this.ProcessEvents(data, ex, exIdx, ev, evIdx, ver.specVersion.toNumber());
+      }));
       */
       // sequential:
       /*
@@ -328,7 +334,7 @@ export class CPolkaStore {
 
   // --------------------------------------------------------------
   // process general extrinsics
-  private async ProcessGeneral(data: TBlockData, ex: IExtrinsic, idxEx: number, ver: RuntimeVersion): Promise<void> {
+  private async ProcessGeneralExtrinsic(data: TBlockData, ex: IExtrinsic, idxEx: number, ver: RuntimeVersion): Promise<void> {
 
     //const pf = (<RuntimeDispatchInfo>ex.info).partialFee;
     let subType: string | undefined = undefined;
@@ -348,7 +354,7 @@ export class CPolkaStore {
     }
 
     const tx: TTransaction = {
-      chain: data.db.chain,
+      chain: this._chain,
       id: data.block.number + '-' + idxEx,
       height: data.blockNr,
       blockHash: data.block.hash.toString(),
@@ -398,7 +404,7 @@ export class CPolkaStore {
     if (ev.method == 'balances.Transfer') {
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx,
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -431,7 +437,7 @@ export class CPolkaStore {
     if (ev.method == 'claims.Claimed') {
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx,
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -464,7 +470,7 @@ export class CPolkaStore {
     if (ev.method == 'balances.DustLost') {
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx,
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -495,7 +501,7 @@ export class CPolkaStore {
   // process staking.Rewarded events
   private async ProcessStakingRewardEvents(data: TBlockData, ex: IExtrinsic, exIdx: number, ev: ISanitizedEvent, evIdx: number): Promise<void> {
     if (ev.method == 'staking.Reward' || ev.method == 'staking.Rewarded') {   // staking.Rewarded from runtime 9090
-      if (ev.data[0].toRawType() != 'AccountId')                    // before Runtime 1050 in Kusama: type 'Balance'
+      if (ev.data[0].toRawType() != 'AccountId')                  // before Runtime 1050 in Kusama: type 'Balance'
         return;
       const stashId = ev.data[0].toString();                      // AccountID of validator
       if (!this.IsValidAccountID(data.blockNr, exIdx, stashId))   // invalid stashId
@@ -511,7 +517,7 @@ export class CPolkaStore {
         payee = (await data.apiAt.query.staking.bonded(stashId)).toString();
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx,
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -546,7 +552,7 @@ export class CPolkaStore {
 
     // check if reward destination is staked
     if (method == 'staking.Reward' || method == 'staking.Rewarded') {   // staking.Rewarded from runtime 9090
-      if (ev.data[0].toRawType() != 'AccountId')                    // before Runtime 1050 in Kusama: type 'Balance'
+      if (ev.data[0].toRawType() != 'AccountId')                  // before Runtime 1050 in Kusama: type 'Balance'
         return;
       const stashId = ev.data[0].toString();                      // AccountId of validator
       if (!this.IsValidAccountID(data.blockNr, exIdx, stashId))   // invalid stashId
@@ -564,7 +570,7 @@ export class CPolkaStore {
       const amount = await this.RepairStakingRebond(data, ex, BigInt(ev.data[1].toString()), data.blockNr, stash, specVer);  // repair amount for runtime <9100
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx + event_suffix,
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -597,7 +603,7 @@ export class CPolkaStore {
     if (ev.method == 'staking.Unbonded') {
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx,
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -630,7 +636,7 @@ export class CPolkaStore {
     if (ev.method == 'balances.ReserveRepatriated') {
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx,
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -716,7 +722,7 @@ export class CPolkaStore {
       //        continue;
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_TransferParachain' + (i + 1),
         height: data.blockNr,
         blockHash: data.block.hash.toString(),
@@ -770,7 +776,7 @@ export class CPolkaStore {
       if (ev.method == 'balances.Deposit' && ev.data[0].toString() != authorId) {  // ignore the fee for block author
 
         const tx: TTransaction = {
-          chain: data.db.chain,
+          chain: this._chain,
           id: data.block.number + '-' + exIdx + '_TransferFromParachain' + (i + 1),
           height: data.blockNr,
           blockHash: data.block.hash.toString(),
@@ -822,7 +828,7 @@ export class CPolkaStore {
     const amount = await this.RepairStakingRebond(data, ex, value.toBigInt(), data.blockNr, stash, specVer);  // repair amount for runtime <9100
 
     const tx: TTransaction = {
-      chain: data.db.chain,
+      chain: this._chain,
       id: data.block.number + '-' + exIdx + '_StakingRebond',
       height: data.blockNr,
       blockHash: data.block.hash.toString(),
@@ -875,7 +881,7 @@ export class CPolkaStore {
       const registrar = registrars[regIdx.toString()].unwrap();
 
       const tx: TTransaction = {
-        chain: data.db.chain,
+        chain: this._chain,
         id: data.block.number + '-' + exIdx + '_ev' + evIdx + '_ReserveRepatriated',
         height: data.blockNr,
         blockHash: data.block.hash.toString(),

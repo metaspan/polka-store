@@ -33,7 +33,7 @@ These steps should only be carried out during the initial installation.
 First you have to clone the repository:  
 
 ``` bash
-git clone https://github.com/TheGoldenEye/polka-store.git
+git clone https://github.com/metaspan/polka-store.git
 ```
 
 #### 2.1.2 Needed packages
@@ -97,12 +97,25 @@ If the file does not exist, `config/config_tpl.json` is copied to
 You can adapt this file to your needs.
 
 Here are the parameters defined for the different chains.  
-Besides the `check_accounts` option there is currently no need to change the default configuration:
+Besides the `check_accounts` option you need change the default configuration for your database settings:
+
+For database connections, ref: https://sequelize.org/docs/v6/getting-started/
 
 ``` json
 config.json:
 {
   "filename": "",
+  "sequelize": {
+    "database": "your-db-name",
+    "username": "your-db-username",
+    "password": "your-db-password",
+    "dialect": "postgres",
+    "dialectOptions": {
+      "host": "127.0.0.1",
+      "port": "5432"
+    },
+    "logging": false
+  },
   "defchain": "Polkadot",
   "chains": {
     "Polkadot": {

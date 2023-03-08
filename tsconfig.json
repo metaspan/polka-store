@@ -16,17 +16,20 @@
     "sourceMap": true,
     "strictNullChecks": true,
     "suppressImplicitAnyIndexErrors": true,
-    "target": "es2017"
+    "target": "es2017",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "typeRoots": [
-    "./node_modules/@types"
+    "node_modules/@types"
   ],
   "exclude": [
     "node_modules"
   ],
   "include": [
-    "./src/**/*.ts",
-    "./src/**/*.json",
-    "./declarations/**/*.d.ts"
+    "src/**/*.ts",
+    "src/**/*.json",
+    "declarations/**/*.d.ts",
+    "src/models/transaction.ts"
   ]
 }

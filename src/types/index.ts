@@ -10,3 +10,4 @@ export * from './NodeVersion';
 export * from './SanitizedArgs';
 export * from './SanitizedCall';
 export * from './SanitizedEvent';
+export * from './Transaction';

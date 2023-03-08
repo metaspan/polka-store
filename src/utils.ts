@@ -2,7 +2,8 @@
 import { IExtrinsic, INodeVersion } from './types';
 import Ajv from "ajv";
 import * as fs from 'fs';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
+// const chalk = require('chalk');
 
 // --------------------------------------------------------------
 // wait ms milliseconds

@@ -1,0 +1,22 @@
+# Use postgres/example user/password credentials
+version: '3.1'
+
+services:
+
+  db:
+    container_name: postgres-polka-store
+    image: postgres
+    # restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pg_data:/data
+    environment:
+      PGDATA: /data
+      POSTGRES_PASSWORD: wordpass
+
+  # adminer:
+  #   image: adminer
+  #   restart: always
+  #   ports:
+  #     - 8080:8080

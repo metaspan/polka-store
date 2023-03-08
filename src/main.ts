@@ -35,7 +35,9 @@ async function main() {
   await polkaStore.InitAPI();
 
   // Create transaction database instance
-  polkaStore.InitDataBase(chain, config.filename || 'data/' + chain + '.db');
+  // polkaStore.InitDataBase(chain, config.filename || 'data/' + chain + '.db');
+  // console.debug(' -- calling InitDataBase()...')
+  await polkaStore.InitDataBase(chain, config.sequelize);
 
   console.log('Press "Ctrl+C" to cancel ...\n');
   await polkaStore.ScanChain();
