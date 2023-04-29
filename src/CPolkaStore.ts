@@ -53,6 +53,7 @@ export class CPolkaStore {
 
   // --------------------------------------------------------------
   async InitAPI(): Promise<ApiPromise> {
+    console.debug('InitAPI()...')
 
     this._apiHandler = new ApiHandler(this._chainData.providers); // Create API Handler
     this._api = await this._apiHandler.connect();
@@ -89,7 +90,7 @@ export class CPolkaStore {
 
   // --------------------------------------------------------------
   async InitDataBase(chain: string, dbOpts: TDBOptions): Promise<CTxDB> {
-    // console.debug('InitDatabase()...', chain, dbOpts)
+    console.debug('InitDatabase()...', chain, dbOpts)
     this._db = await CTxDB.Create(chain, dbOpts); // Create transaction database instance
     return this._db;
   }
@@ -102,6 +103,7 @@ export class CPolkaStore {
 
   // --------------------------------------------------------------
   async ScanChain(): Promise<void> {
+    console.debug('ScanChain() starting...')
 
     if (!this._api || !this._db) {
       console.debug('Missing api or db connection!');
@@ -111,6 +113,7 @@ export class CPolkaStore {
     const maxBlock = this._db.GetMaxHeight();
     const lastBlock = await this.LastBlock();
     const LogBlock = new CLogBlockNr(this._api, lastBlock);
+    console.debug(`maxBlock: ${maxBlock}, lastBlock: ${lastBlock}`)
 
     // scan the chain and write block data to database
     const start = Math.max(maxBlock, this._chainData.startBlock);

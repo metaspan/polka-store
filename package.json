@@ -3,11 +3,13 @@
   "version": "1.6.0",
   "description": "Store balance-relevant transactions from a Polkadot chain in a database",
   "main": "main.js",
+  "type": "commonjs",
   "scripts": {
     "build": "tsc",
     "lint": "tsc && eslint . --ext ts",
     "polkadot": "node ./build/main.js Polkadot 2> logs/`date +%Y%m%d_%H%M_polkadot.err`",
     "kusama": "node ./build/main.js Kusama 2> logs/`date +%Y%m%d_%H%M_kusama.err`",
+    "dock": "node ./build/main.js 'Dock PoS Mainnet' 2> logs/`date +%Y%m%d_%H%M_kusama.err`",
     "westend": "node ./build/main.js Westend 2> logs/`date +%Y%m%d_%H%M_westend.err`",
     "check_polkadot": "node ./build/check.js Polkadot",
     "check_kusama": "node ./build/check.js Kusama",

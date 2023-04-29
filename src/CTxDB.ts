@@ -39,12 +39,15 @@ export class CTxDB {
     this._chain = chain;
 
     console.log('Apply database migrations, please wait ...\n');
+    // console.debug('this._options', this._options)
 
     // db(this._options);
     // db().defaultSafeIntegers(true);
     try {
+      const { database, username, password } = this._options
       const sequelize = new Sequelize({
         ...this._options,
+        // dialectOptions: this._options.dialectOptions,
         // database: this._options.database,
         // dialect: this._options.options.dialect,
         // username: this._options.options.username,
@@ -52,6 +55,7 @@ export class CTxDB {
         //this._options.options
         models: [__dirname + '/models']
       })
+      // console.debug('sequelize.config', sequelize.config)
       // console.debug(sequelize.models)
       // sequelize.addModels([Transaction])
       // console.debug('calling Transaction.init')
@@ -65,7 +69,7 @@ export class CTxDB {
       console.error(err)
       process.exit(5)
     // } finally {
-    //   console.debug('... finally')
+    //   console.debug('constructor done...')
     }
 
     // process.on('exit', () => db().close());     // close database on exit
@@ -76,14 +80,11 @@ export class CTxDB {
   static async Create(chain: string, dbOpts: TDBOptions) {
     console.debug('CTxDB.Create()...')
     const instance = new CTxDB(chain, dbOpts)
-    await instance.syncDB()
+    // console.debug('instance._db.config', instance._db.config)
+    await instance._db.sync({ alter: true })
     instance._maxHeight = await instance.CalcMaxHeight()
     console.debug('instance._maxHeight', instance._maxHeight)
     return instance
-  }
-
-  private async syncDB () {
-    await this._db.sync({ alter: true })
   }
 
   // --------------------------------------------------------------
@@ -140,7 +141,7 @@ export class CTxDB {
     // if we continue an existing database we remove (possibly incomplete) existing records with the same block number
     if (txs[0].height == this._maxHeight) {
       // db().run('DELETE FROM transactions WHERE height>=?', this._maxHeight);
-      await this._transaction.destroy({ where: { height: { [Op.gte]: this._maxHeight } } })
+      await this._transaction.destroy({ where: { chain: this._chain, height: { [Op.gte]: this._maxHeight } } })
     }
 
     // return db().insert('transactions', txs);

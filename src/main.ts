@@ -9,7 +9,7 @@ import { CPolkaStore } from "./CPolkaStore";
 async function main() {
 
   process.on('SIGINT', () => {  // Ctrl+C pressed
-    console.log('');
+    console.log('\nctrl-c...');
     process.exit();
   });
 
@@ -31,15 +31,18 @@ async function main() {
     return;
   }
 
+  // console.debug('creating polkastore...')
   const polkaStore = new CPolkaStore(chainData, chain);
+  // console.debug(' -- calling InitAPI()...')
   await polkaStore.InitAPI();
 
   // Create transaction database instance
   // polkaStore.InitDataBase(chain, config.filename || 'data/' + chain + '.db');
-  // console.debug(' -- calling InitDataBase()...')
+  console.debug(' -- calling InitDataBase()...')
   await polkaStore.InitDataBase(chain, config.sequelize);
 
   console.log('Press "Ctrl+C" to cancel ...\n');
+  console.debug(' -- calling ScanChain()...')
   await polkaStore.ScanChain();
 }
 
